@@ -1,18 +1,54 @@
 
+#include <string>
+
 #include "petsc.h"
+#include "petscviewerhdf5.h"
+#include "petscmat.h"
 #include "slepc.h"
 
 #include "doehler_eigensolver_inout.hpp"
 
-PetscErrorCode doehler::read_matrix(Mat &M, char *name,  PetscViewer fd) {
+PetscErrorCode doehler::read_matrix(Mat &M, std::string &name, std::string &filename, std::string &read_format) {
+  // Data viewer (for reading matrices from file)
+  PetscViewer     viewer;
+  PetscViewerCreate(PETSC_COMM_WORLD, &viewer);
+  PetscViewerSetType(viewer, read_format.data());
+  // PetscViewerPushFormat(viewer, PETSC_VIEWER_HDF5_MAT);
+  PetscViewerFileSetMode(viewer, FILE_MODE_READ);
+  PetscViewerFileSetName(viewer, filename.data());
+
+
+  // Create the matrix to store the saved data
   MatCreate(PETSC_COMM_WORLD, &M);
-  PetscObjectSetName((PetscObject)M, name);
-  MatSetFromOptions(M);
-  MatLoad(M,fd);
+  PetscObjectSetName((PetscObject)M, name.data());
+
+  // Read the matrix from file
+  MatLoad(M, viewer);
+
+  // Clean up
+  PetscViewerDestroy(&viewer);
+
   return(0);
 }
 
-void doehler::fill_tridiagonal_matrix(Mat &M, PetscInt m) {
+PetscErrorCode doehler::write_matrix(Mat &M, std::string &filename, std::string &write_format) {
+  PetscViewer viewer;
+  PetscErrorCode viewer_error;
+  // viewer_error = PetscViewerHDF5Open(PETSC_COMM_WORLD, filename.data(), FILE_MODE_WRITE, &viewer);
+  PetscViewerCreate(PETSC_COMM_WORLD, &viewer);
+  PetscViewerSetType(viewer, write_format.data());
+  // PetscViewerPushFormat(viewer, PETSC_VIEWER_HDF5_MAT);
+  PetscViewerFileSetMode(viewer, FILE_MODE_WRITE);
+  PetscViewerFileSetName(viewer, filename.data());
+
+  viewer_error = MatView(M, viewer);
+
+  PetscViewerDestroy(&viewer);
+
+  return(viewer_error);
+}
+
+void doehler::fill_tridiagonal_matrix(Mat &M, std::string &M_name, PetscInt m) {
     // M: the matrix to fill in with the triagonal filling corresponding to finite differences
     // m: the size of the matrix (assumed square)
 
@@ -22,8 +58,9 @@ void doehler::fill_tridiagonal_matrix(Mat &M, PetscInt m) {
     PetscScalar v[3];
 
     MatCreate(PETSC_COMM_WORLD, &M);
+    PetscObjectSetName((PetscObject)M, M_name.data());
     MatSetSizes(M, PETSC_DECIDE, PETSC_DECIDE, m, m);
-    MatSetOptionsPrefix(M, "matrix_");
+    // MatSetOptionsPrefix(M, "matrix_");
     MatSetFromOptions(M);
     MatSetUp(M);
     MatGetOwnershipRange(M, &lstart, &lend);
