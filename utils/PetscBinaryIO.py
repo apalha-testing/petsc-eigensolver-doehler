@@ -390,7 +390,7 @@ class PetscBinaryIO(object):
 
         close = False
 
-        if type(fid) is types.StringType:
+        if isinstance(fid, str): # type(fid) is types.StringType:
             fid = open(fid, 'rb')
             close = True
 
@@ -435,7 +435,7 @@ class PetscBinaryIO(object):
                     which must be of type Vec, IS, MatSparse, or MatSciPy.
         """
         close = False
-        if type(fid) is types.StringType:
+        if isinstance(fid, str): #type(fid) is types.StringType:
             fid = open(fid, 'wb')
             close = True
 
