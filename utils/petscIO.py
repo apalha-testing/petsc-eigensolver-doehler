@@ -6,15 +6,18 @@ from mpi4py import MPI
 
 import typing
 
-def save_to_file(M: typing.Union[PETSc.Mat, PETSc.Vec],
+def save_to_file(M: typing.Union[
+            typing.Dict[str, typing.Union[PETSc.Mat, PETSc.Vec]],
+            typing.List[typing.Union[PETSc.Mat, PETSc.Vec]]
+        ],
         filename: str, file_format: str,
         comm: typing.Optional[MPI.Intracomm] = MPI.COMM_WORLD):
     """
-    Save PETSc matrix or vector to file in the specified format
+    Save all PETSc matrix or vector in the dict or list M to file in the specified format.
 
     Parameters
     ----------
-    M : PETSc.Mat or PETSc.Vec, shape (n,m) or (k,)
+    M : List or dict of PETSc.Mat or PETSc.Vec,
         PETSc matrix or vector, either complex or real.
     filename: str, shape (1,)
         The name  of the file where to save the data.
@@ -31,21 +34,43 @@ def save_to_file(M: typing.Union[PETSc.Mat, PETSc.Vec],
     Nothing
 
     """
+    print(f'Writting to file {filename} ...')
 
+    # Generate the view to save to file
     if file_format == "binary":
-        viewer_M = PETSc.Viewer().createBinary(filename, mode=PETSc.Viewer.Mode.WRITE, comm=comm)
+        viewer_petsc = PETSc.Viewer().createBinary(filename, mode=PETSc.Viewer.Mode.WRITE, comm=comm)
     elif file_format == "ascii":
-        viewer_M = PETSc.Viewer().createASCII(filename, mode=PETSc.Viewer.Mode.WRITE, comm=comm)
+        viewer_petsc = PETSc.Viewer().createASCII(filename, mode=PETSc.Viewer.Mode.WRITE, comm=comm)
     elif file_format == "hdf5":
-        viewer_M = PETSc.Viewer().createHDF5(filename, mode=PETSc.Viewer.Mode.WRITE, comm=comm)
+        viewer_petsc = PETSc.Viewer().createHDF5(filename, mode=PETSc.Viewer.Mode.WRITE, comm=comm)
     else:
         raise ValueError(f'Format {file_format} is not valid for writing to file.')
 
-    viewer_M(M)
+    # Save each element of M to the viewer (file)
+
+    # First check if the input is a list or a dict and use either a range or the
+    # keys in the loop over the elements
+    if isinstance(M, list):
+        petsc_idx_list = range(0, len(M))  # get the indices for all elements of M (we save all to file)
+
+    elif isinstance(M, dict):
+        petsc_idx_list = M.keys()  # get the keys as the indices so that we do the for loop in the same way
+
+    else:
+        raise ValueError(f'Input M must be either a list or a dict but it is a {type(M)}.')
+
+    for petsc_idx in petsc_idx_list:
+        this_object_name = M[petsc_idx].getName()
+        print(f'   Writting {this_object_name} ...')
+        viewer_petsc(M[petsc_idx])
 
 
-def read_from_file(filename: str, file_format: str,
-        comm: typing.Optional[MPI.Intracomm] = MPI.COMM_WORLD):
+def read_from_file(filename: str, names: typing.List[str], isMat: typing.List[bool], file_format: str,
+        comm: typing.Optional[MPI.Intracomm] = MPI.COMM_WORLD, as_list=True) \
+                -> typing.Union[
+                    typing.Dict[str, typing.Union[PETSc.Mat, PETSc.Vec]],
+                    typing.List[typing.Union[PETSc.Mat, PETSc.Vec]]
+                ]:
     """
     Read PETSc matrix or vector from file in the specified format
 
@@ -53,6 +78,13 @@ def read_from_file(filename: str, file_format: str,
     ----------
     filename: str, shape (1,)
         The name  of the file from where to read the data.
+    names: list[str], shape (n,)
+        The names of the n PETSc objects to load from file.
+        NOTE: this list of names must be in the order they were saved to the file,
+              i.e., the matrix that was saved first will be read first. It is not
+              possible to know the original name of the saved matrix. If you give
+              a wrong naming you will read the files and assign the naming you
+              provided.
     file_format: str, shape (1,)
         The format to use to read the file, this can be:
         binary: PETSc own binary format
@@ -62,24 +94,50 @@ def read_from_file(filename: str, file_format: str,
 
     Returns
     -------
-    M : PETSc.Mat or PETSc.Vec, shape (n,m) or (k,)
-        PETSc matrix or vector, either complex or real.
+    read_objects : The list or dict of PETSc.Mat or PETSc.Vec, (n,)
+        PETSc matrix or vector, either complex or real, read from file.
     """
 
+    print(f'Reading from file {filename} ...')
+
+    # Generate the viewer
     if file_format == "binary":
-        viewer_M = PETSc.Viewer().createBinary(filename, mode=PETSc.Viewer.Mode.READ, comm=comm)
+        viewer_petsc = PETSc.Viewer().createBinary(filename, mode=PETSc.Viewer.Mode.READ, comm=comm)
     elif file_format == "hdf5":
-        viewer_M = PETSc.Viewer().createHDF5(filename, mode=PETSc.Viewer.Mode.READ, comm=comm)
+        viewer_petsc = PETSc.Viewer().createHDF5(filename, mode=PETSc.Viewer.Mode.READ, comm=comm)
     else:
         raise ValueError(f'Format {file_format} is not valid for reading from file.')
 
-    M = PETSc.Mat().load(viewer_M)
+    # Read all requested objects, taking into account their type (Mat or Vec)
+    if as_list:
+        read_objects = []  # output a list in the order present in names
+    else:
+        read_objects = {}  # output a dictionary using names as keys
 
-    return M
+    for petsc_idx, petsc_name in enumerate(names):
+        print(f'   Reading {petsc_name} ...')
+
+        if isMat[petsc_idx]:
+            petsc_obj = PETSc.Mat().create(comm)  # create a PETSc.Mat since it is a matrix
+
+        else:
+            petsc_obj = PETSc.Vec().create(comm)  # create a PETSc.Vec since it is a vector
+
+        # Give it the name, otherwise it will be a generic name
+        petsc_obj.setName(petsc_name)
+
+        # Read the object and add it to the output variable to return all read objects
+        if as_list:
+            read_objects.append(petsc_obj.load(viewer_petsc))  # store in dictionary
+
+        else:
+            read_objects[petsc_name] = petsc_obj.load(viewer_petsc)  # store in list
+
+    return read_objects
 
 
 def matlab2petsc(M: typing.Union[scipy.sparse._csc.csc_matrix, numpy.ndarray],
-        name: str, comm: typing.Optional[MPI.Intracomm] = MPI.COMM_WORLD):
+        name: str, comm: typing.Optional[MPI.Intracomm] = MPI.COMM_WORLD) -> typing.Union[PETSc.Mat, PETSc.Vec]:
     """
     Convert matlab (scipy) array (dense or sparse) or vector into a dense or sparse PETSc Mat
     or Vec, respectively.
@@ -102,11 +160,11 @@ def matlab2petsc(M: typing.Union[scipy.sparse._csc.csc_matrix, numpy.ndarray],
 
     # Check if input M is a sparse matrix or a numpy.ndarray
     if isinstance(M, scipy.sparse._csc.csc_matrix):
-        print(f"M is a sparse csc matrix")
+        print(f"{name} is a sparse csc matrix")
         M_petsc = csc2mat(M, name, comm)
 
     elif isinstance(M, numpy.ndarray):
-        print(f"M is a dense matrix")
+        print(f"{name} is a dense matrix")
         if M.squeeze().ndim == 1:
             print(f"   a vector, actually")
             M_petsc = nparray2vec(M, name, comm)
@@ -116,8 +174,11 @@ def matlab2petsc(M: typing.Union[scipy.sparse._csc.csc_matrix, numpy.ndarray],
             M_petsc = ndarray2mat(M, name, comm)
 
         else:
-            print(f"   the number of dimensios of M is not supported, only 1 or 2 is allowed")
+            print(f"   the number of dimensions of {name} is not supported, only 1 or 2 is allowed")
             M_petsc = None
+
+    else:
+        raise ValueError(f"M is of unsupported type {type(M)}!")
 
     return M_petsc
 

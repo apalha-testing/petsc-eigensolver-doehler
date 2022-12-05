@@ -8,6 +8,7 @@
 
 namespace doehler{
   PetscErrorCode read_matrix(Mat &M, std::string &name, std::string &filename, std::string &read_format);
+  PetscErrorCode read_matrix(Mat &M, std::string &name, PetscViewer &viewer);
   PetscErrorCode write_matrix(Mat &M, std::string &filename, std::string &write_format);
   void fill_tridiagonal_matrix(Mat &M, std::string &M_name, PetscInt m);
 }

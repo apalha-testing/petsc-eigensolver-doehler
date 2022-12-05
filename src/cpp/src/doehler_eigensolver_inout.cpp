@@ -17,7 +17,17 @@ PetscErrorCode doehler::read_matrix(Mat &M, std::string &name, std::string &file
   PetscViewerFileSetMode(viewer, FILE_MODE_READ);
   PetscViewerFileSetName(viewer, filename.data());
 
+  // Read the PETSc object from viewer
+  doehler::read_matrix(M, name, viewer);
 
+  // Clean up
+  PetscViewerDestroy(&viewer);
+
+  return(0);
+}
+
+
+PetscErrorCode doehler::read_matrix(Mat &M, std::string &name, PetscViewer &viewer) {
   // Create the matrix to store the saved data
   MatCreate(PETSC_COMM_WORLD, &M);
   PetscObjectSetName((PetscObject)M, name.data());
@@ -25,11 +35,9 @@ PetscErrorCode doehler::read_matrix(Mat &M, std::string &name, std::string &file
   // Read the matrix from file
   MatLoad(M, viewer);
 
-  // Clean up
-  PetscViewerDestroy(&viewer);
-
   return(0);
 }
+
 
 PetscErrorCode doehler::write_matrix(Mat &M, std::string &filename, std::string &write_format) {
   PetscViewer viewer;
