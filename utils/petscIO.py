@@ -223,7 +223,8 @@ def nparray2vec(v_as_ndarray: numpy.ndarray, name: str,
 
 
 def ndarray2mat(M_as_ndarray: numpy.ndarray, name: str,
-        comm: typing.Optional[MPI.Intracomm] = MPI.COMM_WORLD) -> PETSc.Mat:
+        comm: typing.Optional[MPI.Intracomm] = MPI.COMM_WORLD,
+        M_as_Mat: typing.Optional[typing.Union[None, PETSc.Mat]] = None) -> PETSc.Mat:
     """
     Convert numpy.nparray (n, m) into a PETSc Mat dense.
 
@@ -235,6 +236,10 @@ def ndarray2mat(M_as_ndarray: numpy.ndarray, name: str,
         The name to assign to the PETSc Vec object. Mainly useful if later saved.
     comm: MPI.Intracomm, shape (1,)
         The MPI communicator to use for parallel runs.
+    M_as_Mat: None or PETSc.Mat, shape (n, m)
+        PETSc matrix, either complex or real, with the same elements as M_as_ndarray.
+        If the user provides a matrix, then this matrix is reused and returned.
+        If None is provided, then a new matrix is created.
 
     Returns
     -------
@@ -245,10 +250,12 @@ def ndarray2mat(M_as_ndarray: numpy.ndarray, name: str,
     n_rows, n_cols = M_as_ndarray.shape
 
     # Create array to save
-    M_as_Mat = PETSc.Mat().createDense([n_rows, n_cols], comm=comm)
-    M_as_Mat.setName(name)
-    M_as_Mat.setFromOptions()
-    M_as_Mat.setUp()
+    if M_as_Mat is None:
+        # If M_as_Mat was not provided create a new one, otherwise reuse it
+        M_as_Mat = PETSc.Mat().createDense([n_rows, n_cols], comm=comm)
+        M_as_Mat.setName(name)
+        M_as_Mat.setFromOptions()
+        M_as_Mat.setUp()
 
     # Set the values
     row_start, row_end = M_as_Mat.getOwnershipRange()
