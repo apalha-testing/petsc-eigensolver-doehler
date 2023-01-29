@@ -1,8 +1,12 @@
 #ifndef DOEHLER_EIGENSOLVER_KERNEL_H
 #define DOEHLER_EIGENSOLVER_KERNEL_H
 
+#include "petsc.h"
+
 namespace doehler{
-  void hello_world();
+  void eigen_doehler_petsc(Mat &A, Mat &M, PetscInt n_eigs, PetscInt n_max_iter=100, 
+      PetscReal tol=1e-5, bool normalize_S=true, bool verbose=false, 
+      bool indefinite_dot=true, MPI_Comm comm=PETSC_COMM_WORLD);
 }
 
 #endif  // DOEHLER_EIGENSOLVER_KERNEL_H

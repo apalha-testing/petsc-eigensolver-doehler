@@ -218,6 +218,9 @@ def eigen_doehler_petsc(A, M, n_eigs, n_max_iter=100, tol=1e-5, normalize_S=True
     # Convert the matrices to PETSc sparse matrices
     A_Mat = petscIO.csc2mat(A, 'A', comm=comm)
     M_Mat = petscIO.csc2mat(M, 'M', comm=comm)
+    
+    # Save the matrices to file to use in c++ code
+    petscIO.save_to_file({"A": A_Mat, "M": M_Mat}, "A_M_matrices.dat", "binary")
 
     # Initialize the algorithm with initial guesses
     
