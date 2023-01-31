@@ -33,11 +33,12 @@ int main(int argc, char *argv[]) {
   std::string ofilename(PETSC_MAX_PATH_LEN, '\0');  // the name of the file where to write the matrices, we set the maximum size to PETSc's max path length
   std::string A_name(128, '\0');  // the name of the system matrix (A matrix) to read from the data file
   std::string M_name(128, '\0');  // the name of the right hand side matrix (M matrix) to read from the data file
+  std::string T_name(128, '\0');  // the name of initial T matrix (solution eigenvectors and search space) to read from the data file
   std::string data_format(128, '\0');  // the format to use when reading and writing matrices to the data file
   PetscBool show_input_matrices =  PETSC_FALSE;  // flag to show or not the input matrices in the commandline
   
   // Input data
-  Mat A, M;  // the matrices to store the system matrix, and right hand side matrix
+  Mat A, M, T;  // the matrices to store the system matrix, and right hand side matrix
   PetscInt m = 10;  // the size of the tridiagonal matrix
 
   /*
@@ -55,6 +56,7 @@ int main(int argc, char *argv[]) {
   PetscOptionsGetString(NULL, NULL, "-of", ofilename.data(), ifilename.size(), NULL);
   PetscOptionsGetString(NULL, NULL, "-A_name", A_name.data(), A_name.size(), NULL);
   PetscOptionsGetString(NULL, NULL, "-M_name", M_name.data(), M_name.size(), NULL);
+  PetscOptionsGetString(NULL, NULL, "-T_name", T_name.data(), M_name.size(), NULL);
   PetscOptionsGetString(NULL, NULL, "-data_format", data_format.data(), data_format.size(), NULL);
   PetscOptionsGetBool(NULL, NULL, "-show_input", &show_input_matrices, NULL);
   
@@ -66,6 +68,7 @@ int main(int argc, char *argv[]) {
   std::cout << "   Data format    : " << data_format << std::endl;
   std::cout << "   A matrix       : " << A_name << std::endl;
   std::cout << "   M matrix       : " << M_name << std::endl;
+  std::cout << "   T matrix       : " << T_name << std::endl;
   std::cout << "   Show input     : " << show_input_matrices << std::endl;
 
   /*
@@ -82,6 +85,7 @@ int main(int argc, char *argv[]) {
 
   doehler::read_matrix(A, A_name, viewer);
   doehler::read_matrix(M, M_name, viewer);
+  doehler::read_matrix(T, T_name, viewer);
 
   // Clean up viewer
   PetscViewerDestroy(&viewer);
@@ -94,6 +98,9 @@ int main(int argc, char *argv[]) {
 
     std::cout << "\n\nThe M matrix:" << std::endl;
     MatView(M, PETSC_VIEWER_STDOUT_WORLD);
+    
+    std::cout << "\n\nThe T matrix:" << std::endl;
+    MatView(T, PETSC_VIEWER_STDOUT_WORLD);
   }
   
   /*
@@ -105,8 +112,9 @@ int main(int argc, char *argv[]) {
   bool normalize_S = true;
   bool verbose = true;
   bool indefinite_dot = true;
+  bool py_inputs = true;
 
-  doehler::eigen_doehler_petsc(A, M, n_eigs, n_max_iter, tol, normalize_S, verbose, indefinite_dot);
+  doehler::eigen_doehler_petsc(A, M, T, n_eigs, n_max_iter, tol, normalize_S, verbose, indefinite_dot, py_inputs);
 
   // Write the tridiagonal matrix
 #if defined(PETSC_HAVE_HDF5)
