@@ -86,26 +86,25 @@ namespace doehler{
     EPS eigen_solver;
     EPSCreate(comm, &eigen_solver);
     
-    while((iter_idx <= 0) && (error_max > tol))
+    do
     {
       iter_idx++;  // update counter for number of iterations performed
-      std::cout << "   iter: " << iter_idx << ";  error_max: " << error_max << std::endl;
       
       // Compute the reduced matrices on the space spanned by T = [X, S]
       BVMatProject(T_bv, A_Mat, T_bv, A_Mat_p);
       BVMatProject(T_bv, M_Mat, T_bv, M_Mat_p);
       
-      std::cout << "\n\nThe A matrix:" << std::endl;
-      MatView(A_Mat_p, PETSC_VIEWER_STDOUT_WORLD);
+      // std::cout << "\n\nThe A matrix:" << std::endl;
+      // MatView(A_Mat_p, PETSC_VIEWER_STDOUT_WORLD);
 
-      std::cout << "\n\nThe M matrix:" << std::endl;
-      MatView(M_Mat_p, PETSC_VIEWER_STDOUT_WORLD);
+      // std::cout << "\n\nThe M matrix:" << std::endl;
+      // MatView(M_Mat_p, PETSC_VIEWER_STDOUT_WORLD);
       
       // Create temporary vector to store eigenvalues
       MatCreateVecs(M_Mat_p, &L_Vec, NULL);
       
-      std::cout << "\n\nThe L_Vec vector:" << std::endl;
-      VecView(L_Vec, PETSC_VIEWER_STDOUT_WORLD);
+      // std::cout << "\n\nThe L_Vec vector:" << std::endl;
+      // VecView(L_Vec, PETSC_VIEWER_STDOUT_WORLD);
       
       // Make sure the resulting reduced matrices are still symmetric
       // Symmetry can be lost due to roundoff and accumulation errors
@@ -154,18 +153,18 @@ namespace doehler{
           BVNormColumn(Q_bv, eigen_v_idx, NORM_2, &eigen_v_norm);  // compute the norm of the eigenvector
           BVScaleColumn(Q_bv, eigen_v_idx, eigen_v_norm);  // normalise it 
           
-          std::cout << "\n\nEigenvector:"  << eigen_v_idx << std::endl;
-          VecView(eigen_v, PETSC_VIEWER_STDOUT_WORLD);
+          // std::cout << "\n\nEigenvector:"  << eigen_v_idx << std::endl;
+          // VecView(eigen_v, PETSC_VIEWER_STDOUT_WORLD);
         }
         
-        BVGetColumn(Q_bv, eigen_v_idx, &eigen_v); 
-        std::cout << "\n\nEigenvector:"  << eigen_v_idx << std::endl;
-        VecView(eigen_v, PETSC_VIEWER_STDOUT_WORLD);
-        BVRestoreColumn(Q_bv, eigen_v_idx, &eigen_v);  // restore the column so that we can reuse Q_bv        
+        // BVGetColumn(Q_bv, eigen_v_idx, &eigen_v); 
+        // std::cout << "\n\nEigenvector:"  << eigen_v_idx << std::endl;
+        // VecView(eigen_v, PETSC_VIEWER_STDOUT_WORLD);
+        // BVRestoreColumn(Q_bv, eigen_v_idx, &eigen_v);  // restore the column so that we can reuse Q_bv        
       }
       
-      std::cout << "\n\nEigenvalues:" << std::endl;
-      VecView(L_Vec, PETSC_VIEWER_STDOUT_WORLD);
+      // std::cout << "\n\nEigenvalues:" << std::endl;
+      // VecView(L_Vec, PETSC_VIEWER_STDOUT_WORLD);
       
       // Now we can reconstruct the eigenvectors, i.e., compute them in the full space
       BV T_bv_new;  // the updated reconstructed vectors, below just make a copy to start with
@@ -204,8 +203,8 @@ namespace doehler{
       doehler::compute_residual_eigen_v(A_Mat, M_Mat, L_Vec, X_bv, 0, n_eigs, R_bv);
        
       // Compute the max "L2" error norm
-      PetscReal error_max = 0.0;  // initialise the maximum error of all eigenvectors
-                                   // start with zero value to be sure we update it
+      error_max = 0.0;  // initialise the maximum error of all eigenvectors
+                        // start with zero value to be sure we update it
       PetscReal error_max_temp = 0.0;  // temporary storage for maximum error used in for loop below
                                       // to compute the maximum error
       for(PetscInt eigen_v_idx = 0; eigen_v_idx < n_eigs; eigen_v_idx++)
@@ -265,14 +264,61 @@ namespace doehler{
         BVRestoreColumn(V_bv, column_idx, &V_bv_col_Vec);
       }
       
-      Mat V_Mat;  // get the matrix associated to the search space eigenvectors to use with mult below
-      BVGetMat(V_bv, &V_Mat); 
-      std::cout << "\n\nV_Mat:" << std::endl;
-      MatView(V_Mat, PETSC_VIEWER_STDOUT_WORLD);
-      BVRestoreMat(V_bv, &V_Mat); 
+      // Compute the new search space
+      Mat V_bv_Mat;
+      BVGetMat(V_bv, &V_bv_Mat);
+      BVMult(R_bv, 1.0, 1.0, W_r_bv, V_bv_Mat);
+      BVRestoreMat(V_bv, &V_bv_Mat); 
       
+      // Restart T_bv
+        
+      // Update X part
+      for(PetscInt column_idx = 0; column_idx < n_eigs; column_idx++)
+      {
+        Vec T_bv_column_Vec;
+        BVGetColumn(T_bv, column_idx, &T_bv_column_Vec);  // get the column we want to replace in T_bv and link it to vector T_bv_column_Vec
+        BVCopyVec(X_bv, column_idx, T_bv_column_Vec);     // copy the column of X_bv into the T_bv_column_Vec vector, effectively 
+                                                          // copying the column of X_bv into the column of T_bv 
+        BVRestoreColumn(T_bv, column_idx, &T_bv_column_Vec);
+      }
+      
+      // Update S part
+      for(PetscInt column_idx = 0; column_idx < n_eigs; column_idx++)
+      {
+        PetscInt column_idx_offset = column_idx + n_eigs;  // we need to offset because now we are updating the S part of T_bv
+        
+        Vec T_bv_column_Vec;
+        BVGetColumn(T_bv, column_idx_offset, &T_bv_column_Vec);  // get the column we want to replace in T_bv and link it to vector T_bv_column_Vec
+        BVCopyVec(R_bv, column_idx, T_bv_column_Vec);     // copy the column of R_bv into the T_bv_column_Vec vector, effectively 
+                                                          // copying the column of R_bv into the column of T_bv 
+                                                          // Note that the column index of R_bv is not offset, since R_bv 
+                                                          // contains only the search space, only T_bv contains both the 
+                                                          // (approximate) solution and the search space, hence the offset needed. 
+        
+        // If nothing is done, the search directions result in vectors with very
+        // small norms. This leads to very badly conditioned reduced matrices. A
+        // solution to this problem is to normalize these vectors associated to
+        // the new search directions. This essentially means normalizing the columns
+        // of S.
+        if(normalize_S)
+          VecNormalize(T_bv_column_Vec, NULL);
+                                                            
+        BVRestoreColumn(T_bv, column_idx_offset, &T_bv_column_Vec);
+      } 
+      
+      // TODO Apply the projector to ensure X and S satisfy the
+      // 
+      // TODO Update T (or update during the code so that at the restart of the
+      //      loop, we have the new T ready) (I think this is already done)
 
-    }
+    } while((iter_idx <= 150) && (error_max > tol));
+    
+    
+    // Mat R_Mat;  // get the matrix associated to the search space eigenvectors to use with mult below
+    // BVGetMat(R_bv, &R_Mat); 
+    // std::cout << "\n\nR_Mat:" << std::endl;
+    // MatView(R_Mat, PETSC_VIEWER_STDOUT_WORLD);
+    // BVRestoreMat(R_bv, &R_Mat);  
     
     std::cout << "\n**************************************************************" << std::endl;
     std::cout << "* Doehler eingenvalue solver (PETSc) END" << std::endl;

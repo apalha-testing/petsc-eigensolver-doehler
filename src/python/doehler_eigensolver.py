@@ -236,7 +236,7 @@ def eigen_doehler_petsc(A, M, n_eigs, n_max_iter=100, tol=1e-5, normalize_S=True
     # the n_eigs eigenvectors we wish to find
     T_bv.setActiveColumns(0, n_eigs)
     X_Mat = T_bv.getMat()
-    numpy.random.seed(30)
+    numpy.random.seed(30)  # 30, 33, 45
     X = numpy.random.rand(A_size, n_eigs)
     X_Mat = petscIO.ndarray2mat(X, 'X', comm=comm, M_as_Mat=X_Mat)
     T_bv.restoreMat(X_Mat)
