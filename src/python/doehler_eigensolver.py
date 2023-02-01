@@ -451,7 +451,7 @@ print(f"Error doehler no normalization: \t{error_doehler_no_norm_S} \t\t iter: {
 
 
 # Compute eigenvalues with doehler algorithm (PETSc) --------------------------
-ws_doehler_petsc, vs_doehler_petsc, _, iter_doehler_petsc = eigen_doehler_petsc(A, M, n_eigs, n_max_iter=300, tol=1e-14, normalize_S=True, verbose=False)
+ws_doehler_petsc, vs_doehler_petsc, _, iter_doehler_petsc = eigen_doehler_petsc(A, M, n_eigs, n_max_iter=300, tol=1e-14, normalize_S=True, verbose=False, indefinite_dot=True)
 R_doehler_petsc = (A @ vs_doehler_petsc) - M @ (vs_doehler_petsc * ws_doehler_petsc)
 error_doehler_petsc =  numpy.sqrt(numpy.abs(R_doehler_petsc * R_doehler_petsc.conjugate()).sum(0)).max()
 print(f"Error doehler PETSc: \t\t\t\t{error_doehler_petsc} \t iter: {iter_doehler_petsc}")
